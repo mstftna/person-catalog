@@ -1,14 +1,30 @@
 from src import app, login_manager
-from flask_login import login_user, login_required, logout_user, current_user
+from flask_login import login_user, login_required, logout_user, UserMixin, current_user
 from flask import request, redirect, render_template, url_for, render_template_string
-from src.model.User import User
+from src.model.Auth import Auther, User, users
+
+auther = Auther()
 
 
-users = {"user": User("user", "1234")}
 
 @login_manager.user_loader
-def user_loader(id):
-    return users.get(id)
+def user_loader(uname):
+    if uname not in users:
+        return
+
+    user = User(uname)
+    return user
+
+
+@login_manager.request_loader
+def request_loader(request):
+    uname = request.form.get('uname')
+    if uname not in users:
+        return
+
+    user = User()
+    user.id = uname
+    return user
 
 @app.route("/login", methods=['GET'])
 def login():
@@ -17,24 +33,21 @@ def login():
 
 @app.route("/auth", methods=['POST'])
 def auth():
-    user = users.get(request.form["email"])
+    uname = request.form['uname']
+    password = request.form["password"]
+    if auther.checkUser(uname, password):
+        user = User(uname)
+        login_user(user)
+        return redirect(url_for('main'))
 
-    if user is None or user.password != request.form["password"]:
-        return redirect(url_for("login"))
+    return 'Bad login'
 
-    login_user(user)
-    return redirect(url_for("main"))
-
-
-# @app.route("/protected")
-# @login_required
-# def protected():
-#     return render_template_string(
-#         "Logged in as: {{ user.id }}",
-#         user=current_user
-#     )
-
-@app.route("/logout")
+@app.route('/logout')
 def logout():
     logout_user()
-    return redirect(url_for('logout'))
+    return 'Logged out'
+
+
+@login_manager.unauthorized_handler
+def unauthorized_handler():
+    return 'Unauthorized', 401
